@@ -4,17 +4,36 @@
 #include <math.h>
 #include "glut.h"
 
-const int TAIL_LENGTH = 40;
+const int TAIL_LENGTH = 5;
 const double PI = 3.14;
 
 const int NUM_WAVES = 10;
 double waveY[NUM_WAVES];
+
+const int NUM_SPARKS = 10;
 
 typedef struct
 {
 	double x, y;
 } POINT2D;
 
+typedef struct
+{
+    POINT2D position;
+    int size;
+    POINT2D tail[TAIL_LENGTH];
+    int life; // Tracks how long the spark has been active
+} SPARK;
+
+typedef struct
+{
+    POINT2D position;
+    SPARK sparks[NUM_SPARKS];
+} FIREWORK;
+
+const int NUM_FIREWORKS = 5;
+const double FIREWORK_SPEED = 1.01;
+FIREWORK fireworks[NUM_FIREWORKS];
 
 typedef struct
 {
@@ -46,6 +65,31 @@ void init()
 
 	}
 
+    // Initialize sparks with life = 0
+    for (int i = 0; i < NUM_FIREWORKS; i++)
+    {
+        fireworks[i].position.x = -0.8 + 2 * ((rand() % 1000) / 1000.0);
+        fireworks[i].position.y = 0.8 * ((rand() % 1000) / 1000.0);
+
+        double angleIncrement = 2 * PI / NUM_SPARKS;
+        for (int j = 0; j < NUM_SPARKS; j++)
+        {
+            double angle = j * angleIncrement;
+            fireworks[i].sparks[j].position = fireworks[i].position;
+            fireworks[i].sparks[j].size = 1 + rand() % 3;
+            fireworks[i].sparks[j].life = 0; // Initialize life to 0
+
+            fireworks[i].sparks[j].tail[0].x = cos(angle) * 0.01;
+            fireworks[i].sparks[j].tail[0].y = sin(angle) * 0.01;
+
+            for (int k = 0; k < TAIL_LENGTH; k++)
+            {
+                fireworks[i].sparks[j].tail[k].x = fireworks[i].position.x;
+                fireworks[i].sparks[j].tail[k].y = fireworks[i].position.y;
+            }
+        }
+    }
+
     double waterTop    = -0.2;
     double waterBottom = -1.0;
     double spacing     = (waterTop - waterBottom) / NUM_WAVES;
@@ -53,15 +97,6 @@ void init()
         waveY[i] = waterBottom + i * spacing;
     }
 
-}
-
-double ReflectY(double originalX, double originalY) {
-    double waterLevel = -0.2;
-    double mirrored   = waterLevel - (originalY - waterLevel);
-    // Add a wave effect to the reflection
-    double wave = 0.01 * sin(10 * PI * originalX + offset)
-                  + 0.005 * sin(5 * PI * originalX - 2 * offset);
-    return mirrored + wave;
 }
 
 
@@ -120,26 +155,10 @@ void DrawFunctionGraph()
 	glBegin(GL_LINE_STRIP);
 	for (x = -1;x <= 1;x += 0.01)
 	{
-//		y =fabs( 0.5*sin(x*2*PI )*cos(4*x*PI+ offset));
 		y = 0.6 * cos(0.4 * PI * x) + 0.1*sin(x * 20 * PI )+ 0.1 * sin(x * 5 * PI);
 		glVertex2d(x, y);
 	}
 	glEnd();
-
-	// reflections
-/*
-	glColor3d(0.4, 0.6, 1);
-	glBegin(GL_LINE_STRIP);
-	for (x = -1;x <= 1;x += 0.01)
-	{
-		y = -fabs(0.5 * sin(x * 2 * PI) * cos(4 * x * PI+offset));
-		glVertex2d(x, y);
-	}
-	glEnd();
-	*/
-
-
-
 }
 
 void DrawPointedBuilding(double x, double y, double w){
@@ -167,23 +186,28 @@ void DrawPointedBuilding(double x, double y, double w){
     glColor3d(1,1,0);
     glPointSize(1);
 
+    // windows
+
+    double xLeft, xRight, dx, windX;
+    double tVert, yLevel, ratio, widthAtLevel;
+    int windowsThisStore;
     for(int store = 1; store <= maxStores; ++store)
     {
         // yLevel is interpolated between yBottom and yTop
-        double tVert  = static_cast<double>(store) / (maxStores + 1.0);
-        double yLevel = yBottom + tVert * (yTop - yBottom);
-        double ratio  = (yLevel - yTop) / (yBottom - yTop);
-        double widthAtLevel = (1.0 - ratio)*(w/2.0) + ratio*w;
+        tVert  = static_cast<double>(store) / (maxStores + 1.0);
+        yLevel = yBottom + tVert * (yTop - yBottom);
+        ratio  = (yLevel - yTop) / (yBottom - yTop);
+        widthAtLevel = (1.0 - ratio)*(w/2.0) + ratio*w;
 
-        int windowsThisStore = static_cast<int>(floor(maxWindowsPerStore * (widthAtLevel / w)));
+        windowsThisStore = static_cast<int>(floor(maxWindowsPerStore * (widthAtLevel / w)));
         if (windowsThisStore < 1) continue;
 
-        double xLeft  = x;
-        double xRight = x + widthAtLevel;
-        double dx     = (xRight - xLeft) / (windowsThisStore + 1);
+        xLeft  = x;
+        xRight = x + widthAtLevel;
+        dx     = (xRight - xLeft) / (windowsThisStore + 1);
 
         for(int col = 1; col <= windowsThisStore; ++col) {
-            double windX = xLeft + col * dx;
+            windX = xLeft + col * dx;
             glBegin(GL_POINTS);
             glVertex2d(windX, yLevel);
             glEnd();
@@ -211,9 +235,10 @@ void DrawTriangleEndBuilding(double x, double y, double w)
     glVertex2d(x + w, -0.2);
     glEnd();
 
-    // windows: place them inside the triangular silhouette
+    // windows
     int maxStores = 20;
     int maxWindowsPerStore = 10;
+    int windowsThisStore;
     double yTop    = y;
     double yBottom = -0.2;
     double tVert,yLevel, ratio, widthAt;
@@ -226,7 +251,7 @@ void DrawTriangleEndBuilding(double x, double y, double w)
         ratio  = (yTop - yLevel) / (yTop - yBottom);
         widthAt = ratio * w;           // width shrinks to zero at the apex
         if (widthAt < 0.02) continue;         // skip very narrow floors
-        int windowsThisStore = static_cast<int>(floor(maxWindowsPerStore * (widthAt / w)));
+        windowsThisStore = static_cast<int>(floor(maxWindowsPerStore * (widthAt / w)));
         if (windowsThisStore < 1) continue;
         xCenter = x + w / 2.0;         // centre of the triangle
         xLeft   = xCenter - widthAt / 2.0;
@@ -313,8 +338,7 @@ void DrawBuildings()
 
 	// far buildings
 	for (x = -1;x <= 1;x += 0.05)
-	{
-		//		y =fabs( 0.5*sin(x*2*PI )*cos(4*x*PI+ offset));
+    {
 		y = 0.6 * cos(0.4 * PI * x) + 0.15 * sin(x * 20 * PI) + 0.2 * sin(x * 5 * PI);
         if (x < -0.7 || x > 0.7)
         {
@@ -337,7 +361,6 @@ void DrawBuildings()
 	w = 0.15;
 	for (x = -1;x <= 1;x += 0.05)
 	{
-		//		y =fabs( 0.5*sin(x*2*PI )*cos(4*x*PI+ offset));
 		y = 0.2 * cos(0.4 * PI * x) + 0.1 * sin(x * 13 * PI) + 0.1 * sin(x * 5 * PI);
 
         if (x < -0.7 || x > 0.7)
@@ -355,33 +378,49 @@ void DrawBuildings()
 
 
 		x += w;
-	
 
-		// frame
-/*		glColor3d(0, 0, 0);
-
-		glBegin(GL_LINE_LOOP);
-		glVertex2d(x, y);
-		glVertex2d(x + w, y);
-		glVertex2d(x + w, -0.2);
-		glVertex2d(x, -0.2);
-		x += w;
-		glEnd();
-		*/
 	}
 
 }
 
+void DrawTail(SPARK spark) {
+    double intensity = 1.0; // initial intensity
+    glBegin(GL_POINTS);
+    for (int i = 0; i < TAIL_LENGTH; ++i) {
+        glColor3d(intensity, intensity, 0.0); // fade from yellow to black
+        glVertex2d(spark.tail[i].x, spark.tail[i].y);
+        intensity *= 0.96; // reduce intensity for the tail effect
+        if (intensity < 0.01) break; // stop if too dim
+    }
+    glEnd();
+}
+
+void DrawFirework(FIREWORK firework) {
+    int i;
+    glColor3d(1,1,0);
+    for (i = 0; i < NUM_SPARKS; i++){
+        glPointSize(firework.sparks[i].size);
+        DrawTail(firework.sparks[i]); // draw the tail of each spark
+    }
+}
+
 void DrawSceneWithReflection() {
     // draw the normal skyline
+    DrawSky();
+    for (int i = 0; i < NUM_FIREWORKS; i++) {
+        DrawFirework(fireworks[i]); // draw each firework
+    }
     DrawBuildings();
 
     // draw reflection: invert the y‑axis and translate to the water level
     glPushMatrix();
     glTranslated(0.0, -0.21, 0.0);
-    glScaled(1.0, -0.5, 1.0);
+    glScaled(1.0, -0.5, 0.7);
     glTranslated(0.0, 0.2, 0.0);
-    DrawBuildings();   // draw mirrored skyline
+    for (int i = 0; i < NUM_FIREWORKS; i++) {
+        DrawFirework(fireworks[i]); // draw each firework
+    }
+    DrawBuildings();
     glPopMatrix();
 
     // darken the reflection region
@@ -403,10 +442,9 @@ void display()
 {
 	glClear(GL_COLOR_BUFFER_BIT); // clean frame buffer
 
-	DrawSky();
-	//DrawFunctionGraph();
+    DrawSky();
     DrawSceneWithReflection();
-    DrawHalfCircleWaves();         // draw the water waves
+    DrawHalfCircleWaves(); // draw the water waves
 
 
 
@@ -433,6 +471,41 @@ void idle()
         if (waveY[w] > -0.2)           // recycle at the waterline
             waveY[w] = -1.0;
     }
+
+    const double SPEED_FACTOR = 0.005; // Reduce the speed of the tail
+    const int MAX_LIFE = 50; // Maximum life of a spark
+
+    for (int i = 0; i < NUM_FIREWORKS; i++)
+    {
+        for (int j = 0; j < NUM_SPARKS; j++)
+        {
+            SPARK &spark = fireworks[i].sparks[j];
+
+            // Update tail positions
+            for (int k = TAIL_LENGTH - 1; k > 0; --k)
+            {
+                spark.tail[k] = spark.tail[k - 1];
+            }
+            spark.tail[0] = spark.position;
+
+            // Update spark position based on its direction
+            double directionX = cos(j * 2 * PI / NUM_SPARKS) * SPEED_FACTOR;
+            double directionY = sin(j * 2 * PI / NUM_SPARKS) * SPEED_FACTOR;
+            spark.position.x += directionX;
+            spark.position.y += directionY;
+
+            // Increment life counter
+            spark.life++;
+
+            // Reset spark if life exceeds MAX_LIFE
+            if (spark.life > MAX_LIFE)
+            {
+                spark.position = fireworks[i].position;
+                spark.life = 0; // Reset life counter
+            }
+        }
+    }
+
 
 
     glutPostRedisplay(); // indirect call to display
