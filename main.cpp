@@ -7,10 +7,8 @@
 const int TAIL_LENGTH = 40;
 const double PI = 3.14;
 
-const int NUM_RIPPLES = 6;
-double rippleX[NUM_RIPPLES];
-double rippleY[NUM_RIPPLES];
-double rippleRadius[NUM_RIPPLES];
+const int NUM_WAVES = 10;
+double waveY[NUM_WAVES];
 
 typedef struct
 {
@@ -48,10 +46,11 @@ void init()
 
 	}
 
-    for (int i = 0; i < NUM_RIPPLES; ++i) {
-        rippleX[i] = -1.0 + 2.0 * ((rand() % 1000) / 1000.0);
-        rippleY[i] = -1.0 + ((rand() % 800) / 1000.0) * 0.8;       // between –1 and –0.2
-        rippleRadius[i] = 0.02 + 0.04 * ((rand() % 1000) / 1000.0);
+    double waterTop    = -0.2;
+    double waterBottom = -1.0;
+    double spacing     = (waterTop - waterBottom) / NUM_WAVES;
+    for (int i = 0; i < NUM_WAVES; ++i) {
+        waveY[i] = waterBottom + i * spacing;
     }
 
 }
@@ -324,19 +323,23 @@ void DrawReflectedSquareBuilding(double x, double y, double w)
     }
 }
 
-void DrawRippleCircles() {
+void DrawHalfCircleWaves() {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glColor4d(0.6, 0.7, 1.0, 0.3);     // light blue, translucent
-    const int SEGMENTS = 36;
-    for (int i = 0; i < NUM_RIPPLES; ++i) {
-        double cx = rippleX[i], cy = rippleY[i], r = rippleRadius[i];
-        glBegin(GL_LINE_LOOP);
-        for (int j = 0; j < SEGMENTS; ++j) {
-            double angle = 2.0 * PI * j / SEGMENTS;
-            double x = cx + r * cos(angle);
-            double y = cy + r * sin(angle);
-            if (y <= -0.2)             // only draw inside the water region
+    glColor4d(0.8, 0.8, 1.0, 0.2);    // subtle highlight colour
+    const int SEGMENTS = 80;
+    const double amplitude = 0.05;    // height of each arc
+
+    for (int w = 0; w < NUM_WAVES; ++w) {
+        double baseY = waveY[w];
+        glBegin(GL_LINE_STRIP);
+        for (int i = 0; i <= SEGMENTS; ++i) {
+            double x = -1.0 + 2.0 * i / SEGMENTS;             // x ∈ [-1,1]
+            // Compute the half‑circle’s vertical displacement: yOffset = A·√(1–x²)
+            double yOffset = amplitude * sqrt(fmax(0.0, 1.0 - x * x));
+            // Invert the offset so the arc bulges downward into the water
+            double y = baseY + yOffset;
+            if (y <= -0.2)                                     // only draw in water
                 glVertex2d(x, y);
         }
         glEnd();
@@ -425,7 +428,7 @@ void display()
 	DrawSky();
 	//DrawFunctionGraph();
     DrawSceneWithReflection();
-    DrawRippleCircles();
+    DrawHalfCircleWaves();         // draw the water waves
 
 
 
@@ -447,18 +450,14 @@ void idle()
 		stars[index].size = 1 + rand() % 3;
 	}
 
-    for (int r = 0; r < NUM_RIPPLES; ++r) {
-        rippleY[r]      += 0.0015;        // move up
-        rippleRadius[r] += 0.0002;        // expand slightly
-        if (rippleY[r] > -0.2) {          // recycle at the waterline
-            rippleY[r]      = -1.0;
-            rippleX[r]      = -1.0 + 2.0 * ((rand() % 1000) / 1000.0);
-            rippleRadius[r] = 0.02 + 0.04 * ((rand() % 1000) / 1000.0);
-        }
+    for (int w = 0; w < NUM_WAVES; ++w) {
+        waveY[w] += 0.0005;            // upward speed
+        if (waveY[w] > -0.2)           // recycle at the waterline
+            waveY[w] = -1.0;
     }
 
 
-	glutPostRedisplay(); // indirect call to display
+    glutPostRedisplay(); // indirect call to display
 }
 
 
