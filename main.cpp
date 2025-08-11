@@ -191,58 +191,55 @@ void DrawPointedBuilding(double x, double y, double w){
     }
 }
 
-// Draw a reflected pointed building with ripples.
-void DrawReflectedPointedBuilding(double x, double y, double w)
+
+void DrawTriangleEndBuilding(double x, double y, double w)
 {
-    // Draw the tapered body: left edge, tapered top, right edge, bottom edge
+    // body
     glBegin(GL_POLYGON);
-    glColor3d(0.1, 0.1, 0.15);
-    glVertex2d(x,             ReflectY(x,             y));       // left-top
-    glVertex2d(x + w / 2.0,   ReflectY(x + w / 2.0,   y));       // taper top
-    glColor3d(0.25, 0.25, 0.3);
-    glVertex2d(x + w,         ReflectY(x + w,        -0.2));    // bottom-right
-    glVertex2d(x,             ReflectY(x,            -0.2));    // bottom-left
+    glColor3d(0.2, 0.2, 0.2);
+    glVertex2d(x + w / 2.0, y);          // apex
+    glColor3d(0.9 * fabs(x), y - 0.4 * fabs(x), y);
+    glVertex2d(x + w, -0.2);             // base right
+    glVertex2d(x, -0.2);                 // base left
     glEnd();
 
-    // shininess stripe on the right side
-    glColor3d(0.5, 0.5, 0.6);
+    // shininess on right edge
+    glColor3d(0.9, 0.9, 0.8);
     glBegin(GL_POLYGON);
-    glVertex2d(x + w / 2.0,         ReflectY(x + w / 2.0,         y));
-    glVertex2d(x + w / 2.0 + 0.01,  ReflectY(x + w / 2.0 + 0.01,  y));
-    glVertex2d(x + w + 0.01,        ReflectY(x + w + 0.01,       -0.2));
-    glVertex2d(x + w,               ReflectY(x + w,              -0.2));
+    glVertex2d(x + w / 2.0, y);
+    glVertex2d(x + w + 0.01, -0.2);
+    glVertex2d(x + w, -0.2);
     glEnd();
 
-    // windows: same horizontal distribution as the pointed building above the water,
-    // but use ReflectY() for the vertical coordinate
+    // windows: place them inside the triangular silhouette
     int maxStores = 20;
     int maxWindowsPerStore = 10;
     double yTop    = y;
     double yBottom = -0.2;
-    glColor3d(0.5, 0.5, 0.3);
+    double tVert,yLevel, ratio, widthAt;
+    double xLeft, dx, wx, xCenter;
+    glColor3d(1, 1, 0);
     glPointSize(1);
     for (int store = 1; store <= maxStores; ++store) {
-        // vertical position of this store (leave a margin at top and bottom)
-        double tVert   = static_cast<double>(store) / (maxStores + 1.0);
-        double yLevel  = yBottom + tVert * (yTop - yBottom);
-        // width of the building at this height (interpolate from w/2 to w)
-        double ratio   = (yLevel - yTop) / (yBottom - yTop);
-        double widthAt = (1.0 - ratio) * (w / 2.0) + ratio * w;
-        // number of windows on this store scales with available width
+        tVert  = static_cast<double>(store) / (maxStores + 1.0);
+        yLevel = yBottom + tVert * (yTop - yBottom);
+        ratio  = (yTop - yLevel) / (yTop - yBottom);
+        widthAt = ratio * w;           // width shrinks to zero at the apex
+        if (widthAt < 0.02) continue;         // skip very narrow floors
         int windowsThisStore = static_cast<int>(floor(maxWindowsPerStore * (widthAt / w)));
         if (windowsThisStore < 1) continue;
-        double xLeft  = x;
-        double xRight = x + widthAt;
-        double dx     = (xRight - xLeft) / (windowsThisStore + 1);
+        xCenter = x + w / 2.0;         // centre of the triangle
+        xLeft   = xCenter - widthAt / 2.0;
+        dx      = widthAt / (windowsThisStore + 1);
         for (int col = 1; col <= windowsThisStore; ++col) {
-            double wx = xLeft + col * dx;
-            double wy = ReflectY(wx, yLevel);
+            wx = xLeft + col * dx;
             glBegin(GL_POINTS);
-            glVertex2d(wx, wy);
+            glVertex2d(wx, yLevel);
             glEnd();
         }
     }
 }
+
 
 void DrawSquareBuilding(double x, double y, double w)
 {
@@ -282,46 +279,6 @@ void DrawSquareBuilding(double x, double y, double w)
         }
 }
 
-// Draw a reflected square building with ripples.
-void DrawReflectedSquareBuilding(double x, double y, double w)
-{
-    // draw the body of the building: top edge, right edge, bottom edge, left edge
-    glBegin(GL_POLYGON);
-    glColor3d(0.1, 0.1, 0.15); // dark base colour for reflections
-    glVertex2d(x,        ReflectY(x,        y));    // top-left reflected
-    glVertex2d(x + w,    ReflectY(x + w,    y));    // top-right reflected
-    glColor3d(0.25, 0.25, 0.3);
-    glVertex2d(x + w,    ReflectY(x + w,   -0.2));  // bottom-right reflected
-    glVertex2d(x,        ReflectY(x,       -0.2));  // bottom-left reflected
-    glEnd();
-
-    // shininess stripe along the right side
-    glColor3d(0.5, 0.5, 0.6);
-    glBegin(GL_POLYGON);
-    glVertex2d(x + w,        ReflectY(x + w,        y));
-    glVertex2d(x + w + 0.01, ReflectY(x + w + 0.01, y));
-    glVertex2d(x + w + 0.01, ReflectY(x + w + 0.01, -0.2));
-    glVertex2d(x + w,        ReflectY(x + w,       -0.2));
-    glEnd();
-
-    // windows: mirror each window's y–coordinate with ReflectY()
-    int numStores = 20;
-    int numWindowsPerStore = 10;
-    glColor3d(0.5, 0.5, 0.3); // dimmer window colour
-    glPointSize(1);
-    double dv = (y + 0.2) / numStores;
-    double dh = w / numWindowsPerStore;
-    for (int store = 2; store < numStores - 2; ++store) {
-        double yLevel = -0.2 + store * dv;
-        for (int column = 0; column < numWindowsPerStore - 1; ++column) {
-            double wx = x + 0.01 + column * dh;
-            double wy = ReflectY(wx, yLevel);
-            glBegin(GL_POINTS);
-            glVertex2d(wx, wy);
-            glEnd();
-        }
-    }
-}
 
 void DrawHalfCircleWaves() {
     glEnable(GL_BLEND);
@@ -359,13 +316,18 @@ void DrawBuildings()
 	{
 		//		y =fabs( 0.5*sin(x*2*PI )*cos(4*x*PI+ offset));
 		y = 0.6 * cos(0.4 * PI * x) + 0.15 * sin(x * 20 * PI) + 0.2 * sin(x * 5 * PI);
-        if (x < -0.5 || x > 0.5)
+        if (x < -0.7 || x > 0.7)
         {
-            DrawSquareBuilding(x, y, w);
+            DrawTriangleEndBuilding(x, y, w);
+
+        }
+        else if (x < -0.5 || x > 0.5)
+        {
+            DrawPointedBuilding(x, y, w);
         }
         else
         {
-            DrawPointedBuilding(x, y, w);
+            DrawSquareBuilding(x, y, w);
         }
 
         x += w;
@@ -378,9 +340,13 @@ void DrawBuildings()
 		//		y =fabs( 0.5*sin(x*2*PI )*cos(4*x*PI+ offset));
 		y = 0.2 * cos(0.4 * PI * x) + 0.1 * sin(x * 13 * PI) + 0.1 * sin(x * 5 * PI);
 
-        if (x < -0.5 || x > 0.5)
+        if (x < -0.7 || x > 0.7)
         {
             DrawSquareBuilding(x, y, w);
+        }
+        else if (x < -0.5 || x > 0.5)
+        {
+            DrawTriangleEndBuilding(x, y, w);
         }
         else
         {
@@ -412,12 +378,24 @@ void DrawSceneWithReflection() {
 
     // draw reflection: invert the y‑axis and translate to the water level
     glPushMatrix();
-    glTranslated(0.0, -0.21, 0.0);    // translate so that y=0 maps to the waterline y=-0.2
-    glScaled(1.0, -0.5, 1.0);        // flip vertically
-    glTranslated(0.0, 0.2, 0.0);     // undo half of the translation
-    DrawBuildings();                 // draw mirrored skyline
+    glTranslated(0.0, -0.21, 0.0);
+    glScaled(1.0, -0.5, 1.0);
+    glTranslated(0.0, 0.2, 0.0);
+    DrawBuildings();   // draw mirrored skyline
     glPopMatrix();
+
+    // darken the reflection region
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glColor4f(0.0f, 0.0f, 0.0f, 0.4f); // 40 % opaque black
+    glBegin(GL_QUADS);
+    glVertex2d(-1.0, -1.0);
+    glVertex2d( 1.0, -1.0);
+    glVertex2d( 1.0, -0.2);
+    glVertex2d(-1.0, -0.2);
+    glEnd();
 }
+
 
 
 
