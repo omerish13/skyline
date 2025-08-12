@@ -308,7 +308,7 @@ void DrawSquareBuilding(double x, double y, double w)
 void DrawHalfCircleWaves() {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glColor4d(0.8, 0.8, 1.0, 0.2);    // subtle highlight colour
+    glColor4d(0.8, 0.8, 1.0, 0.2);    // subtle highlight color
     const int SEGMENTS = 80;
     const double amplitude = 0.05;    // height of each arc
 
@@ -316,12 +316,12 @@ void DrawHalfCircleWaves() {
         double baseY = waveY[w];
         glBegin(GL_LINE_STRIP);
         for (int i = 0; i <= SEGMENTS; ++i) {
-            double x = -1.0 + 2.0 * i / SEGMENTS;             // x ∈ [-1,1]
-            // Compute the half‑circle’s vertical displacement: yOffset = A·√(1–x²)
+            double x = -1.0 + 2.0 * i / SEGMENTS;             // x in [-1,1]
+            // Compute the half‑circle’s vertical displacement
             double yOffset = amplitude * sqrt(fmax(0.0, 1.0 - x * x));
             // Invert the offset so the arc bulges downward into the water
             double y = baseY + yOffset;
-            if (y <= -0.2)                                     // only draw in water
+            if (y <= -0.2)  // only draw in water
                 glVertex2d(x, y);
         }
         glEnd();
